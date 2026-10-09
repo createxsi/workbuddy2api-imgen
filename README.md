@@ -1,4 +1,4 @@
-> **📌 本仓库是 `linguo2625469/workbuddy2api-panel` 的派生版本 `workbuddy2api-imgen`**
+> **📌 本仓库是 `Sliverkiss/workbuddy2api-panel` 的增强版本的派生`workbuddy2api-imgen`**（套娃🤣）
 >
 > 在原网关之上叠加 **OpenAI 兼容生图能力**（文生图 / 图生图 / 生成类模型清单），详见「🎨 生图能力」。
 > 其余部分与上游保持一致，并保留 `upstream` remote 以便跟随更新。

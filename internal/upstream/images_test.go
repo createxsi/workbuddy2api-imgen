@@ -202,7 +202,8 @@ func TestNormalizeImageResponseBizError(t *testing.T) {
 // 外层腾讯信封 {code,msg,requestId,data}；图片在 data.data[]；created 在 data.created；
 // 另含 background/output_format/quality/size 等元字段。本地传入的 created 应被上游值覆盖。
 func TestNormalizeImageResponseRealUpstreamShape(t *testing.T) {
-	raw := []byte(`{"code":0,"msg":"OK","requestId":"0292b09a-58d8-4478-8d01-c722e29c6d77",
+	// requestId 用占位值（真实抓包值已脱敏），仅保留信封结构用于回归。
+	raw := []byte(`{"code":0,"msg":"OK","requestId":"<request-id>",
 		"data":{"background":"opaque","created":1791555584,
 		"data":[{"b64_json":"iVBORw0KGgo="}],
 		"output_format":"png","quality":"high","size":"1024x1024",
