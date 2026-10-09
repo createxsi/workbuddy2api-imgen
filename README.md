@@ -1,5 +1,5 @@
 > **📌 本仓库 `workbuddy2api-imgen` 派生自 `linguo2625469/workbuddy2api-panel`**
-> （上游源头为 `Sliverkiss/workbuddy2api`，属二层派生）
+> （上游源头为 `Sliverkiss/workbuddy2api`，套娃派生🤣）
 >
 > 在原网关之上叠加 **OpenAI 兼容生图能力**（文生图 / 图生图 / 生成类模型清单），详见「🎨 生图能力」。
 > 其余部分与上游保持一致，并保留 `upstream` remote 以便跟随更新。
@@ -231,8 +231,7 @@ flowchart LR
 
 ### 方式〇：GHCR 镜像（免克隆免构建）
 
-> **本派生仓库的镜像**：把下方镜像名中的 `<OWNER>` 换成你的 GitHub 用户名
-> （`ghcr.io/<OWNER>/workbuddy2api-imgen:latest`）。
+> **本派生仓库的镜像地址**：`ghcr.io/createxsi/workbuddy2api-imgen:latest`。
 > 本仓库**未预置 CI 工作流**，如需 GHCR 自动构建请自行添加
 > （可参考上游 `linguo2625469/workbuddy2api-panel` 的 workflow）。
 > 若不想配置 CI，直接用「方式一 / 方式二」即可。
@@ -246,7 +245,7 @@ mkdir -p auths data && cp config.example.json config.json
 docker run -d --name workbuddy2api \
   -p 7863:7863 -e TZ=Asia/Shanghai \
   -v ./auths:/app/auths -v ./data:/app/data -v ./config.json:/app/config.json \
-  ghcr.io/<OWNER>/workbuddy2api-imgen:latest
+  ghcr.io/createxsi/workbuddy2api-imgen:latest
 
 # 3. 健康检查（无可用账号时返回 503）
 curl -s http://localhost:7863/healthz
@@ -258,8 +257,8 @@ curl -s http://localhost:7863/healthz
 ### 方式一：Docker Compose（推荐服务器部署）
 
 ```bash
-# 1. 克隆（把 <YOUR_USER> 换成你的 GitHub 用户名）
-git clone https://github.com/<YOUR_USER>/workbuddy2api-imgen.git
+# 1. 克隆
+git clone https://github.com/createxsi/workbuddy2api-imgen.git
 cd workbuddy2api-imgen
 
 # 2. 准备配置（compose 挂载此文件，缺失会导致容器启动失败）
@@ -908,13 +907,45 @@ sudo chown -R 10001:10001 ./auths ./data ./config.json
 
 在聊天代理之上叠加 OpenAI 兼容的生图端点。**设计原则是"新增而不改动"**：`/v1/models` 及其探测链路一行未改，本功能全部落在新文件里（`internal/server/images.go`、`internal/upstream/images.go`），便于跟随上游更新时零冲突。
 
-### 端点
+### 怎么知道有哪些图片模型可用？
 
-| 端点 | 说明 |
-|---|---|
-| `POST /v1/images/generations` | 文生图 |
-| `POST /v1/images/edits` | 图生图（入站兼容 `multipart/form-data` 与 `application/json`） |
-| `GET /v1/images/models` | 生成类模型清单（独立于 `/v1/models`） |
+**Web 面板和 `/v1/models` 里看不到生图模型，这是正常的**——它们被 `nonChatModel` 规则从聊天目录里剔除了（因为当对话模型发到 `/chat/completions` 会被上游拒绝，实测 `code=11103 "Backend [maas] is not supported"`）。
+
+要列出可用的生图模型，用独立端点：
+
+```bash
+curl http://127.0.0.1:7863/v1/images/models -H "Authorization: Bearer $API_KEY"
+```
+
+返回沿用 `/v1/models` 的形状，额外带 `generation_model: true` 和 `endpoints`（告诉你该发到哪个端点）：
+
+```json
+{"object":"list","data":[
+  {"id":"global:gpt-image-2.5-sunburst","name":"GPT-Image-2.5-Sunburst",
+   "tags":["text-to-image","image-to-image"],"generation_model":true,
+   "endpoints":["POST /v1/images/generations","POST /v1/images/edits"]},
+  {"id":"cn:hunyuan-image-alpha","name":"Hunyuan Image Alpha",
+   "tags":["text-to-image"],"generation_model":true,
+   "endpoints":["POST /v1/images/generations"]}
+]}
+```
+
+> 若某次探测全部失败（无可用账号 / 网络异常），该端点会回落到一个内置静态清单，
+> 至少保证客户端拿得到可用模型名——因为**生图端点本身不读目录，直接指定模型名即可调用**。
+
+### 两站可用模型（2026-10-09 实测）
+
+| 站 | 模型 ID | 名称 | 能力 | 可用端点 |
+|---|---|---|---|---|
+| **国际**（global） | `global:gpt-image-2.5-sunburst` | GPT-Image-2.5-Sunburst | 文生图 + **图生图** | generations / edits |
+| **CN** | `cn:hunyuan-image-alpha` | Hunyuan Image Alpha | 文生图 | generations |
+| **CN** | `cn:hunyuan-image-alpha-edit` | — | **图生图** | edits |
+
+要点：
+- **要做图生图，优先用 `global:gpt-image-2.5-sunburst`**（国际站模型同时带两个 tag）。
+- CN 的两个模型中，`hunyuan-image-alpha-edit` **只在桌面端 UA 探测的目录里出现**，
+  常规 IDE UA 探测（21 条）不含它，所以它可能不在 `/v1/images/models` 列表里。
+  但**直接指定模型名调用依然有效**——端点不校验目录。
 
 ### 用法
 
