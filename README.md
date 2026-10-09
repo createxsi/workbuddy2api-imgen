@@ -1,3 +1,11 @@
+> **📌 本仓库是 `linguo2625469/workbuddy2api-panel` 的派生版本 `workbuddy2api-imgen`**
+>
+> 在原网关之上叠加 **OpenAI 兼容生图能力**（文生图 / 图生图 / 生成类模型清单），详见「🎨 生图能力」。
+> 其余部分与上游保持一致，并保留 `upstream` remote 以便跟随更新。
+>
+> 注：Go module 名沿用 `github.com/linguo2625469/workbuddy2api-panel`（不改 import 路径），
+> 这是**有意为之**——合并上游时可做到零冲突。仓库名与 module 名不同不影响使用。
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/DGZSbot/ai-icon/refs/heads/main/WorkBuddy.png" alt="WorkBuddy2API" width="120">
 </p>
