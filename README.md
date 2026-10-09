@@ -1,4 +1,5 @@
-> **📌 本仓库是 `Sliverkiss/workbuddy2api-panel` 的增强版本的派生`workbuddy2api-imgen`**（套娃🤣）
+> **📌 本仓库 `workbuddy2api-imgen` 派生自 `linguo2625469/workbuddy2api-panel`**
+> （上游源头为 `Sliverkiss/workbuddy2api`，属二层派生）
 >
 > 在原网关之上叠加 **OpenAI 兼容生图能力**（文生图 / 图生图 / 生成类模型清单），详见「🎨 生图能力」。
 > 其余部分与上游保持一致，并保留 `upstream` remote 以便跟随更新。
@@ -230,35 +231,36 @@ flowchart LR
 
 ### 方式〇：GHCR 镜像（免克隆免构建）
 
-CI 会自动构建多架构镜像（`amd64` / `arm64`）并发布到 GHCR，`git clone` 之外的部署路径：
+> **本派生仓库的镜像**：把下方镜像名中的 `<OWNER>` 换成你的 GitHub 用户名
+> （`ghcr.io/<OWNER>/workbuddy2api-imgen:latest`）。
+> 本仓库**未预置 CI 工作流**，如需 GHCR 自动构建请自行添加
+> （可参考上游 `linguo2625469/workbuddy2api-panel` 的 workflow）。
+> 若不想配置 CI，直接用「方式一 / 方式二」即可。
 
 ```bash
 # 1. 准备配置与数据目录
 mkdir -p auths data && cp config.example.json config.json
 #    建议编辑 config.json 设置 api_key（或留空由程序自动生成随机密钥）
 
-# 2. 拉取并运行
+# 2. 拉取并运行（镜像名按你的仓库替换）
 docker run -d --name workbuddy2api \
   -p 7863:7863 -e TZ=Asia/Shanghai \
   -v ./auths:/app/auths -v ./data:/app/data -v ./config.json:/app/config.json \
-  ghcr.io/linguo2625469/workbuddy2api-panel:latest
+  ghcr.io/<OWNER>/workbuddy2api-imgen:latest
 
 # 3. 健康检查（无可用账号时返回 503）
 curl -s http://localhost:7863/healthz
 ```
 
-> **首次发布后须将包设为公开**：GitHub 仓库页 → Packages → `workbuddy2api-panel` →
+> **首次发布后须将包设为公开**：GitHub 仓库页 → Packages → `workbuddy2api-imgen` →
 > Package settings → Change visibility → Public，否则拉取需要 `docker login ghcr.io`。
->
-> 镜像 tag 规则：`main` 分支推送 `latest` / `main` / `sha-xxxxxx`；打 `v*` tag 额外发布
-> `1.2.3` / `1.2` / `1` 语义化版本；PR 仅构建验证、不推送。
 
 ### 方式一：Docker Compose（推荐服务器部署）
 
 ```bash
-# 1. 克隆
-git clone https://github.com/linguo2625469/workbuddy2api-panel.git
-cd workbuddy2api-panel
+# 1. 克隆（把 <YOUR_USER> 换成你的 GitHub 用户名）
+git clone https://github.com/<YOUR_USER>/workbuddy2api-imgen.git
+cd workbuddy2api-imgen
 
 # 2. 准备配置（compose 挂载此文件，缺失会导致容器启动失败）
 cp config.example.json config.json
