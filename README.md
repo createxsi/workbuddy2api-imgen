@@ -167,6 +167,7 @@ WorkBuddy2API 是一个自托管的 **OpenAI 兼容反向代理网关**，将腾
 | **模型能力透出** | `/v1/models` 附带 `supported_efforts` / `default_effort` / 积分倍率 / 输入输出上限等上游真实字段 |
 | **安全加固** | 常量时间密钥比较（`internal/httpauth`）、CSP 与安全响应头、UID 白名单防路径穿越、前端属性转义修复 |
 | **领养前置修复** | 上游 `travelAdopt` 缺 report 前置导致领养恒失败于 `first_buddy task not completed yet`；本分支修正后实测 +300 到账（3/3 账号） |
+| **OpenAI 兼容生图** | `POST /v1/images/generations`、`POST /v1/images/edits`、`GET /v1/images/models`。详见下方「🎨 生图能力」 |
 
 ### 同步上游
 
@@ -892,6 +893,63 @@ sudo chown -R 10001:10001 ./auths ./data ./config.json
 | streak 端点 `activity/growth/streak` | `internal/upstream/travel.go:24`（常量）、`:139`（`GrowthStreak`） |
 | Redis 粘性镜像 7 天 TTL | `internal/redisstore/redisstore.go:21` |
 | 静态模型表含 `deepseek-v4-flash` 等 | `internal/server/handler.go:146` |
+
+## 🎨 生图能力
+
+在聊天代理之上叠加 OpenAI 兼容的生图端点。**设计原则是"新增而不改动"**：`/v1/models` 及其探测链路一行未改，本功能全部落在新文件里（`internal/server/images.go`、`internal/upstream/images.go`），便于跟随上游更新时零冲突。
+
+### 端点
+
+| 端点 | 说明 |
+|---|---|
+| `POST /v1/images/generations` | 文生图 |
+| `POST /v1/images/edits` | 图生图（入站兼容 `multipart/form-data` 与 `application/json`） |
+| `GET /v1/images/models` | 生成类模型清单（独立于 `/v1/models`） |
+
+### 用法
+
+```bash
+# 文生图
+curl -X POST http://127.0.0.1:7863/v1/images/generations \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"global:gpt-image-2.5-sunburst","prompt":"一只橘猫坐在窗台上","size":"1024x1024"}'
+
+# 图生图（JSON 入站；image 支持 data URL / http(s) URL / 裸 base64 / 本地文件路径）
+curl -X POST http://127.0.0.1:7863/v1/images/edits \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" \
+  -d '{"model":"global:gpt-image-2.5-sunburst","prompt":"改成水彩画","image":["D:\\in.png"]}'
+
+# 图生图（multipart 入站，OpenAI 标准形态）
+curl -X POST http://127.0.0.1:7863/v1/images/edits \
+  -H "Authorization: Bearer $API_KEY" \
+  -F "image=@D:\in.png" -F "prompt=改成水彩画"
+
+# 生成类模型清单
+curl http://127.0.0.1:7863/v1/images/models -H "Authorization: Bearer $API_KEY"
+```
+
+### 实现要点
+
+- **上游出站是 JSON 而非 multipart**（与 OpenAI 的 multipart 约定不同），图片以 data URL 数组放在 `image` 字段。
+- **响应是腾讯信封**，不是 OpenAI 格式，需归一化：
+  ```
+  {"code":0,"msg":"OK","requestId":"<id>",
+   "data":{"data":[{"b64_json":"..."}],"created":<unix>,"usage":{...},"size":...,"quality":...}}
+  ```
+  注意字段名是驼峰 `requestId`。
+- **realm 路由**复用 chat 的 `global:` / `cn:` 前缀协议；无前缀默认 `global`，池内无 global 可服务号时回退 `cn`。默认模型按 realm 区分：
+  - `global` → `gpt-image-2.5-sunburst`（文生图 + 图生图）
+  - `cn` → `hunyuan-image-alpha`（文生图）/ `hunyuan-image-alpha-edit`（图生图）
+
+  这些 CN 模型在 `/v1/models` 里可能不出现（上游按 UA 下发不同目录），但**生图端点不看列表，直接指定模型名即可调用**。
+- **上游有最小分辨率下限**：`512x512` 会被拒（`code=14401`）。需要小图请生成后自行缩放。
+- **选号 / 轮转 / 错误处置**复用 chat 同链路。`Acquire` 是每账号在途名额计数（默认 CN 3 / global 2），生图占 1 个名额，不独占账号、不阻塞聊天。
+- **生成类模型不进 `/v1/models`** —— 这是正确行为：它们当对话模型发到 `/chat/completions` 会被上游拒（实测 `code=11103 "Backend [maas] is not supported"`）。需要发现它们请用 `GET /v1/images/models`。
+
+### 已知边界
+
+- 视频生成（`seedance-2.5`）未实现，仅在 `/v1/images/models` 中列出。
+- 生图消耗明显高于聊天（实测文生图约 0.6 credit / 张，图生图约 1.54 credit / 张），耗时 40–50s。
 
 ## 免责声明
 
